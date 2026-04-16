@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Flying | Spencer Brown</title>
+    <link rel="stylesheet" href="css/scratch.css">
+</head>
+<body>
+
+    <div class="header" id="top">
+        <h1>My Hobby: Flying Drones</h1>
+        <p>I enjoy flying drones on vacation, at home, and for real estate photography.</p>
+        <a href="index.html">Back to Professional Pages</a> |
+        <a href="ai.html">Play My Drone Game</a>
+    </div>
+
+    <div class="navbox">
+        <a href="#lists">Jump to My Drone Uses</a> |
+        <a href="#video">Watch Drone Video</a> |
+        <a href="#tableau">See Data</a>
+    </div>
+
+    <div class="contentbox" id="lists">
+        <h2>How I Use Drones</h2>
+        <ol>
+            <li>Travel & Vacations
+                <ul>
+                    <li>Capturing scenic views</li>
+                    <li>Recording cinematic videos</li>
+                </ul>
+            </li>
+            <li>At Home
+                <ul>
+                    <li>Practicing flying skills</li>
+                    <li>Exploring new camera angles</li>
+                </ul>
+            </li>
+            <li>Making Money
+                <ul>
+                    <li>Real estate photography</li>
+                    <li>Drone video services</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <div class="imagebox">
+        <h2>My Drone Photography</h2>
+        <img src="assets/img/dronePicture.png" alt="Drone photo">
+    </div>
+
+    <div class="contentbox" id="video">
+        <h2>Drone Flight Video</h2>
+        <iframe width="560" height="315" 
+            src="https://www.youtube.com/embed/5USCp_GVLHM" 
+            title="Drone video" 
+            frameborder="0" 
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+            allowfullscreen>
+        </iframe>
+    </div>
+
+    <div class="contentbox" id="tableau">
+        <h2>Drone Data Visualization</h2>
+
+
+
+    <div class='tableauPlaceholder' id='vizDrone' style='position: relative'>
+        <noscript>
+            <a href='#'>
+                <img alt='Drone Dashboard'
+                src='https://public.tableau.com/static/images/Dr/DronePrivacyLawsAroundtheWorld/Dashboard/1_rss.png'
+                style='border: none' />
+            </a>
+        </noscript>
+
+        <object class='tableauViz' style='display:none;'>
+            <param name='host_url' value='https://public.tableau.com/' />
+            <param name='embed_code_version' value='3' />
+            <param name='site_root' value='' />
+            <param name='name' value='DronePrivacyLawsAroundtheWorld/Dashboard' />
+            <param name='tabs' value='no' />
+            <param name='toolbar' value='yes' />
+        </object>
+    </div>
+
+    <script type='text/javascript'>
+        var divElement = document.getElementById('vizDrone');
+        var vizElement = divElement.getElementsByTagName('object')[0];
+
+        vizElement.style.width = '100%';
+        vizElement.style.maxWidth = '900px';
+        vizElement.style.height = '700px';
+
+        var scriptElement = document.createElement('script');
+        scriptElement.src = 'https://public.tableau.com/javascripts/api/viz_v1.js';
+        vizElement.parentNode.insertBefore(scriptElement, vizElement);
+    </script>
+</div>
+
+    <div class="footerbox">
+        <a href="#top">Back to Top</a>
+    </div>
+
+</body>
+</html>

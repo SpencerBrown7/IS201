@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drone Dodger</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(to bottom, #87ceeb 0%, #cfefff 60%, #eaf8ff 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #gameWrapper {
+      position: relative;
+      width: 420px;
+      max-width: 95vw;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      border: 4px solid #1f2937;
+      border-radius: 18px;
+      background: linear-gradient(to bottom, #7dd3fc 0%, #bae6fd 50%, #d9f99d 100%);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.22);
+    }
+
+    #hud {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      color: #0f172a;
+      font-weight: 700;
+      text-shadow: 0 1px 1px rgba(255,255,255,0.8);
+    }
+
+    .panel {
+      background: rgba(255, 255, 255, 0.75);
+      border: 2px solid rgba(15, 23, 42, 0.15);
+      border-radius: 12px;
+      padding: 8px 12px;
+      backdrop-filter: blur(4px);
+    }
+
+    #message {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+      color: #0f172a;
+      font-weight: 700;
+      pointer-events: none;
+    }
+
+    #message .box {
+      background: rgba(255,255,255,0.85);
+      border-radius: 18px;
+      padding: 22px 18px;
+      border: 3px solid rgba(15, 23, 42, 0.15);
+      max-width: 320px;
+      box-shadow: 0 10px 35px rgba(0,0,0,0.15);
+    }
+
+    #message h1 {
+      margin: 0 0 10px;
+      font-size: 28px;
+    }
+
+    #message p {
+      margin: 8px 0;
+      line-height: 1.45;
+      font-size: 15px;
+    }
+
+    .accent {
+      color: #b45309;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameWrapper">
+    <canvas id="game" width="420" height="700"></canvas>
+
+    <div id="hud">
+      <div class="panel">Coins: <span id="score">0</span></div>
+      <div class="panel">High Score: <span id="highScore">0</span></div>
+    </div>
+
+    <div id="message">
+      <div class="box" id="messageBox">
+        <h1>Drone Dodger</h1>
+        <p>Press <span class="accent">Space</span>, click, or tap to fly up.</p>
+        <p>Dodge buildings, collect coins, and beat your high score.</p>
+        <p><span class="accent">Press Space</span> to start.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    const scoreEl = document.getElementById('score');
+    const highScoreEl = document.getElementById('highScore');
+    const message = document.getElementById('message');
+    const messageBox = document.getElementById('messageBox');
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    let highScore = Number(localStorage.getItem('droneDodgerHighScore') || 0);
+    highScoreEl.textContent = highScore;
+
+    const game = {
+      state: 'start',
+      frame: 0,
+      speed: 2.9,
+      gravity: 0.34,
+      lift: -6.7,
+      obstacleGap: 185,
+      obstacleWidth: 70,
+      obstacleSpacing: 210,
+      coinRadius: 12,
+      score: 0
+    };
+
+    const drone = {
+      x: 105,
+      y: H / 2,
+      w: 64,
+      h: 30,
+      vy: 0,
+      rotation: 0
+    };
+
+    let obstacles = [];
+    let coins = [];
+    let clouds = createClouds();
+    let groundOffset = 0;
+    let restartUnlockTime = 0;
+
+    function createClouds() {
+      return Array.from({ length: 6 }, (_, i) => ({
+        x: i * 100 + Math.random() * 80,
+        y: 70 + Math.random() * 220,
+        w: 50 + Math.random() * 40,
+        h: 24 + Math.random() * 16,
+        speed: 0.3 + Math.random() * 0.4
+      }));
+    }
+
+    function resetGame() {
+      game.state = 'playing';
+      game.frame = 0;
+      game.speed = 2.9;
+      game.score = 0;
+      drone.y = H / 2;
+      drone.vy = 0;
+      drone.rotation = 0;
+      obstacles = [];
+      coins = [];
+      groundOffset = 0;
+      scoreEl.textContent = 0;
+      hideMessage();
+    }
+
+    function endGame() {
+      game.state = 'gameover';
+      restartUnlockTime = Date.now() + 1200;
+      if (game.score > highScore) {
+        highScore = game.score;
+        localStorage.setItem('droneDodgerHighScore', String(highScore));
+        highScoreEl.textContent = highScore;
+        showMessage(
+          'New High Score!',
+          `You collected <span class="accent">${game.score}</span> coins.<br>Starting again in a moment...<br>Press <span class="accent">Space</span>, click, or tap after the pause.`
+        );
+      } else {
+        showMessage(
+          'Game Over',
+          `You collected <span class="accent">${game.score}</span> coins.<br>High Score: <span class="accent">${highScore}</span><br>Starting again in a moment...<br>Press <span class="accent">Space</span>, click, or tap after the pause.`
+        );
+      }
+    }
+
+    function showMessage(title, bodyHtml) {
+      message.style.display = 'flex';
+      messageBox.innerHTML = `<h1>${title}</h1><p>${bodyHtml}</p>`;
+    }
+
+    function hideMessage() {
+      message.style.display = 'none';
+    }
+
+    function flap() {
+      if (game.state === 'start') {
+        resetGame();
+      }
+
+      if (game.state === 'gameover') {
+        if (Date.now() >= restartUnlockTime) {
+          resetGame();
+        }
+        return;
+      }
+
+      if (game.state === 'playing') {
+        drone.vy = game.lift;
+      }
+    }
+
+    function spawnObstacleSet() {
+      const minTop = 90;
+      const maxTop = H - 220 - game.obstacleGap;
+      const topHeight = minTop + Math.random() * (maxTop - minTop);
+      const x = W + 40;
+
+      obstacles.push({
+        x,
+        width: game.obstacleWidth,
+        topHeight,
+        bottomY: topHeight + game.obstacleGap,
+        bottomHeight: H - (topHeight + game.obstacleGap) - 70,
+        passed: false
+      });
+
+      const safeCoinY = topHeight + game.obstacleGap / 2;
+      coins.push({
+        x: x + game.obstacleWidth / 2,
+        y: safeCoinY,
+        r: game.coinRadius,
+        collected: false,
+        spin: Math.random() * Math.PI * 2
+      });
+    }
+
+    function update() {
+      game.frame++;
+
+      for (const cloud of clouds) {
+        cloud.x -= cloud.speed;
+        if (cloud.x + cloud.w < 0) {
+          cloud.x = W + Math.random() * 80;
+          cloud.y = 60 + Math.random() * 250;
+        }
+      }
+
+      if (game.state !== 'playing') return;
+
+      game.speed += 0.0008;
+      groundOffset = (groundOffset + game.speed) % 40;
+
+      drone.vy += game.gravity;
+      drone.y += drone.vy;
+      drone.rotation = Math.max(-0.35, Math.min(0.8, drone.vy * 0.06));
+
+      if (game.frame % Math.floor(game.obstacleSpacing / game.speed * 1.2) === 0) {
+        spawnObstacleSet();
+      }
+
+      for (const obstacle of obstacles) {
+        obstacle.x -= game.speed;
+      }
+
+      for (const coin of coins) {
+        coin.x -= game.speed;
+        coin.spin += 0.18;
+      }
+
+      obstacles = obstacles.filter(o => o.x + o.width > -20);
+      coins = coins.filter(c => c.x + c.r > -20 && !c.collected);
+
+      const droneRect = {
+        x: drone.x - drone.w / 2 + 6,
+        y: drone.y - drone.h / 2 + 3,
+        w: drone.w - 12,
+        h: drone.h - 6
+      };
+
+      if (drone.y - drone.h / 2 < 0 || drone.y + drone.h / 2 > H - 70) {
+        endGame();
+        return;
+      }
+
+      for (const obstacle of obstacles) {
+        const hitsTop = rectIntersect(droneRect, {
+          x: obstacle.x,
+          y: 0,
+          w: obstacle.width,
+          h: obstacle.topHeight
+        });
+
+        const hitsBottom = rectIntersect(droneRect, {
+          x: obstacle.x,
+          y: obstacle.bottomY,
+          w: obstacle.width,
+          h: obstacle.bottomHeight + 70
+        });
+
+        if (hitsTop || hitsBottom) {
+          endGame();
+          return;
+        }
+      }
+
+      for (const coin of coins) {
+        const dx = coin.x - drone.x;
+        const dy = coin.y - drone.y;
+        const hitRadius = coin.r + Math.min(drone.w, drone.h) * 0.33;
+        if (!coin.collected && dx * dx + dy * dy < hitRadius * hitRadius) {
+          coin.collected = true;
+          game.score += 1;
+          scoreEl.textContent = game.score;
+        }
+      }
+    }
+
+    function rectIntersect(a, b) {
+      return (
+        a.x < b.x + b.w &&
+        a.x + a.w > b.x &&
+        a.y < b.y + b.h &&
+        a.y + a.h > b.y
+      );
+    }
+
+    function drawBackground() {
+      ctx.clearRect(0, 0, W, H);
+
+      const sky = ctx.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, '#7dd3fc');
+      sky.addColorStop(0.55, '#dbeafe');
+      sky.addColorStop(1, '#bbf7d0');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      for (const cloud of clouds) {
+        drawCloud(cloud.x, cloud.y, cloud.w, cloud.h);
+      }
+
+      ctx.fillStyle = '#86efac';
+      ctx.fillRect(0, H - 70, W, 70);
+
+      ctx.fillStyle = '#4b5563';
+      for (let x = -groundOffset; x < W + 40; x += 40) {
+        ctx.fillRect(x, H - 26, 22, 6);
+      }
+    }
+
+    function drawCloud(x, y, w, h) {
+      ctx.beginPath();
+      ctx.ellipse(x, y, w * 0.28, h * 0.55, 0, 0, Math.PI * 2);
+      ctx.ellipse(x + w * 0.22, y - h * 0.22, w * 0.23, h * 0.5, 0, 0, Math.PI * 2);
+      ctx.ellipse(x + w * 0.46, y, w * 0.3, h * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawObstacle(obstacle) {
+      const { x, width, topHeight, bottomY, bottomHeight } = obstacle;
+
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(x, 0, width, topHeight);
+      ctx.fillRect(x, bottomY, width, bottomHeight);
+
+      ctx.fillStyle = '#475569';
+      for (let y = 20; y < topHeight - 10; y += 28) {
+        ctx.fillRect(x + 12, y, 14, 10);
+        ctx.fillRect(x + 38, y, 14, 10);
+      }
+      for (let y = bottomY + 20; y < bottomY + bottomHeight - 10; y += 28) {
+        ctx.fillRect(x + 12, y, 14, 10);
+        ctx.fillRect(x + 38, y, 14, 10);
+      }
+
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(x - 4, topHeight - 12, width + 8, 12);
+      ctx.fillRect(x - 4, bottomY, width + 8, 12);
+    }
+
+    function drawCoin(coin) {
+      ctx.save();
+      ctx.translate(coin.x, coin.y);
+      const squash = 0.75 + Math.abs(Math.cos(coin.spin)) * 0.25;
+      ctx.scale(squash, 1);
+
+      ctx.beginPath();
+      ctx.arc(0, 0, coin.r, 0, Math.PI * 2);
+      ctx.fillStyle = '#facc15';
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(0, 0, coin.r - 4, 0, Math.PI * 2);
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.fillStyle = '#92400e';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('$', 0, 1);
+      ctx.restore();
+    }
+
+    function drawDrone() {
+      ctx.save();
+      ctx.translate(drone.x, drone.y);
+      ctx.rotate(drone.rotation);
+
+      // Body
+      ctx.fillStyle = '#111827';
+      roundRect(-22, -10, 44, 20, 8, true);
+
+      // Top shell
+      ctx.fillStyle = '#ef4444';
+      roundRect(-18, -15, 36, 10, 6, true);
+
+      // Camera
+      ctx.fillStyle = '#0ea5e9';
+      ctx.beginPath();
+      ctx.arc(24, 0, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Arms
+      ctx.strokeStyle = '#374151';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(-14, -6);
+      ctx.lineTo(-28, -18);
+      ctx.moveTo(14, -6);
+      ctx.lineTo(28, -18);
+      ctx.moveTo(-14, 6);
+      ctx.lineTo(-28, 18);
+      ctx.moveTo(14, 6);
+      ctx.lineTo(28, 18);
+      ctx.stroke();
+
+      // Rotors
+      const rotorSpin = game.frame * 0.45;
+      drawRotor(-30, -20, rotorSpin);
+      drawRotor(30, -20, -rotorSpin);
+      drawRotor(-30, 20, -rotorSpin);
+      drawRotor(30, 20, rotorSpin);
+
+      ctx.restore();
+    }
+
+    function drawRotor(x, y, spin) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = '#111827';
+      ctx.beginPath();
+      ctx.arc(0, 0, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.rotate(spin);
+      ctx.strokeStyle = 'rgba(17, 24, 39, 0.55)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-12, 0);
+      ctx.lineTo(12, 0);
+      ctx.moveTo(0, -12);
+      ctx.lineTo(0, 12);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function roundRect(x, y, w, h, r, fill = false) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      if (fill) ctx.fill();
+    }
+
+    function drawStartHint() {
+      if (game.state !== 'playing') {
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.font = 'bold 20px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('↑ Fly Up', W / 2, H - 105);
+      }
+    }
+
+    function render() {
+      drawBackground();
+
+      for (const obstacle of obstacles) {
+        drawObstacle(obstacle);
+      }
+
+      for (const coin of coins) {
+        if (!coin.collected) drawCoin(coin);
+      }
+
+      drawDrone();
+      drawStartHint();
+    }
+
+    function loop() {
+      update();
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' || e.code === 'ArrowUp') {
+        e.preventDefault();
+        flap();
+      }
+    });
+
+    canvas.addEventListener('mousedown', flap);
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      flap();
+    }, { passive: false });
+
+    loop();
+  </script>
+</body>
+</html>
